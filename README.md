@@ -17,10 +17,10 @@ Per-conversation subagent model selection for DeepSeek Harness Desktop.
 Install through the DSH profile/plugin manager after publishing the npm package:
 
 ```text
-dsh plugin --profile desktop add dsh-subagent-model-picker@0.1.0
+dsh plugin --profile desktop add @zim9729/dsh-subagent-model-picker@0.1.1
 ```
 
-The package declares both `dsh.bundle.patch` and `dsh.client`, so the Host entry and browser entry are mounted by the normal DSH bundle pipeline. Restart DSH after installation when the installer reports that a restart is required. The package's bundle patch is the only required mount; do not duplicate it in a profile patch file.
+The package declares both `dsh.bundle.patch` and `dsh.client`, so the Host entry and browser entry are mounted by the normal DSH bundle pipeline. Restart DSH after installation when the installer reports that a restart is required. The package's bundle patch is the only required mount; do not duplicate it in a profile patch file. Because this release uses the `@zim9729` npm scope, keep the scope in the install command and plugin-center registry entry.
 
 Do not add a second manual row for this package to the profile's `cordis.patch.yml`; the package's own bundle patch already mounts its row.
 
@@ -50,10 +50,9 @@ npm pack
 
 ## Publishing
 
-1. Replace the placeholder GitHub owner in `package.json`.
-2. Push this repository to GitHub.
-3. Run `npm publish` from a clean tagged commit.
-4. Submit the npm package/repository URL to the DSH plugin center registry according to its contribution process.
+1. Push this repository to GitHub.
+2. Run `npm publish` from a clean tagged commit.
+3. Submit the npm package/repository URL to the DSH plugin center registry according to its contribution process.
 
 The plugin center catalog and npm publication are separate operations; publishing to npm alone does not automatically add the package to a curated registry.
 

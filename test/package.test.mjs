@@ -11,10 +11,12 @@ test('package declares a complete DSH bundle surface', async () => {
   assert.equal(pkg.dsh.client.platform, 'web')
   assert.equal(pkg.exports['./client'], './lib/client.js')
   assert.equal(pkg.exports['./cordis.patch.yml'], './cordis.patch.yml')
+  assert.equal(pkg.name, '@zim9729/dsh-subagent-model-picker')
+  assert.equal(pkg.version, '0.1.1')
 })
 
 test('bundle patch mounts the package host entry', async () => {
   const patch = await readFile(resolve(root, 'cordis.patch.yml'), 'utf8')
   assert.match(patch, /id:\s+subagent-model-override/)
-  assert.match(patch, /name:\s+'dsh-subagent-model-picker'/)
+  assert.match(patch, /name:\s+'@zim9729\/dsh-subagent-model-picker'/)
 })

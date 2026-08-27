@@ -1,6 +1,6 @@
 {
-  "name": "dsh-subagent-model-picker",
-  "version": "0.1.0",
+  "name": "@zim9729/dsh-subagent-model-picker",
+  "version": "0.1.1",
   "description": "Per-conversation subagent model selection for DeepSeek Harness Desktop.",
   "type": "module",
   "main": "./lib/index.js",
@@ -44,11 +44,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/dsh-subagent-model-picker.git"
+    "url": "git+https://github.com/Zim9729/dsh-subagent-model-picker.git"
   },
-  "homepage": "https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/dsh-subagent-model-picker#readme",
+  "homepage": "https://github.com/Zim9729/dsh-subagent-model-picker#readme",
   "bugs": {
-    "url": "https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/dsh-subagent-model-picker/issues"
+    "url": "https://github.com/Zim9729/dsh-subagent-model-picker/issues"
   },
   "keywords": [
     "deepseek",

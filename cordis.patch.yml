@@ -2,4 +2,4 @@
 # The DSH profile loader reads this file through dsh.bundle.patch.
 - insert:
     - id: subagent-model-override
-      name: 'dsh-subagent-model-picker'
+      name: '@zim9729/dsh-subagent-model-picker'
