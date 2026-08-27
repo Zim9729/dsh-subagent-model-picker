@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- All UI strings switched to English.
+
 ## 0.2.0
 
 - "子 agent 跟随默认" now means "follow the main agent's current model" instead of "use DSH global default".
