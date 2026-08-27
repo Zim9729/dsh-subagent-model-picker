@@ -20,3 +20,18 @@ test('bundle patch mounts the package host entry', async () => {
   assert.match(patch, /id:\s+subagent-model-override/)
   assert.match(patch, /name:\s+'@zim9729\/dsh-subagent-model-picker'/)
 })
+
+test('client bundle registers the scoped package name', async () => {
+  const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'))
+  const bundle = await readFile(resolve(root, 'lib/client.js'), 'utf8')
+  let registration
+  Function('window', bundle)({
+    __ModuleLoader__: {
+      load(value) {
+        registration = value
+      },
+    },
+  })
+  assert.ok(registration)
+  assert.equal(registration.id, pkg.name)
+})
