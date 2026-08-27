@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Fix: client bundle registers under the scoped package name `@zim9729/dsh-subagent-model-picker`.
+
 ## 0.2.1
 
 - All UI strings switched to English.
