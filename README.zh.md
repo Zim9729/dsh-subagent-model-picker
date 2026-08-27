@@ -17,15 +17,17 @@ DeepSeek Harness Desktop 的会话级子 agent 模型选择插件。
 
 ## 安装
 
-通过 DSH 配置/插件管理器安装：
+### 命令行
 
 ```text
 dsh plugin --profile desktop add @zim9729/dsh-subagent-model-picker@0.2.0
 ```
 
-包已声明 `dsh.bundle.patch` 和 `dsh.client`，Host 入口和浏览器入口由 DSH bundle 管线自动挂载。安装后按提示重启 DSH。
+### DSH Web
 
-不要手动向 profile 的 `cordis.patch.yml` 添加重复行；包自带的 bundle patch 已完成挂载。
+打开 DSH Web GUI（如 `http://127.0.0.1:43120`），进入 **设置 → 插件**，搜索 `dsh-subagent-model-picker`，点击 **安装**。Web 插件管理器会自动从 npm 解析包并添加到当前 profile。
+
+安装后（无论哪种方式），按提示重启 DSH。包已声明 `dsh.bundle.patch` 和 `dsh.client`，Host 和浏览器入口自动挂载。不要手动向 profile 的 `cordis.patch.yml` 添加重复行。
 
 ## 工作原理
 

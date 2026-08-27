@@ -17,15 +17,17 @@ Per-conversation subagent model selection for DeepSeek Harness Desktop.
 
 ## Install
 
-Install through the DSH profile/plugin manager:
+### CLI
 
 ```text
 dsh plugin --profile desktop add @zim9729/dsh-subagent-model-picker@0.2.0
 ```
 
-The package declares both `dsh.bundle.patch` and `dsh.client`, so the Host entry and browser entry are mounted by the normal DSH bundle pipeline. Restart DSH after installation when the installer reports that a restart is required.
+### DSH Web
 
-Do not add a second manual row for this package to the profile's `cordis.patch.yml`; the package's own bundle patch already mounts its row.
+Open the DSH web GUI (e.g. `http://127.0.0.1:43120`), go to **Settings → Plugins**, search for `dsh-subagent-model-picker`, and click **Install**. The web plugin manager resolves the package from npm and adds it to the active profile automatically.
+
+After installation (either method), restart DSH when prompted. The package declares both `dsh.bundle.patch` and `dsh.client`, so the Host and browser entries mount automatically. Do not add a duplicate row to the profile's `cordis.patch.yml`.
 
 ## How It Works
 
