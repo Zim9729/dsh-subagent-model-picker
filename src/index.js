@@ -273,20 +273,33 @@ export function apply(ctx) {
     const agentId = sessionFromAgent(agent)
     if (agentId === undefined) return
     if (!subagentHeader(header)) {
+      // Root agents: capture their current model on each request so subagents
+      // can follow it by default. The handler is PREPENDED so `next()` yields
+      // the fully-resolved config (after the host's own model-selection
+      // waterfall, installed during agent setup, has applied its override).
+      // Without prepend, this capture would read only the raw agentOptions and
+      // miss the model the user picked for the main agent in the GUI.
       agent.ctx.on('agent/request', async (_payload, next) => {
         const resolved = await next()
         if (resolved?.provider && resolved?.model) {
           mainModels.set(agentId, { provider: resolved.provider, model: resolved.model })
         }
         return resolved
-      })
+      }, true)
     } else {
+      // Subagents: apply an explicit override, or fall back to the root
+      // agent's captured model. Both handlers are PREPENDED for the same
+      // reason as the root capture: the host's model-selection waterfall is
+      // registered during agent setup, so an unprepended handler would see the
+      // config BEFORE that override and its own replacement would be
+      // overwritten on the way out. Prepending makes this handler the
+      // outermost one, so its replacement is the final word.
       agent.ctx.on('agent/request', async (_payload, next) => {
         const resolved = await next()
         const { root, selection } = selectionForSession(agentId)
         const target = selection || (root ? mainModels.get(root) : undefined)
         return target ? { ...resolved, provider: target.provider, model: target.model } : resolved
-      })
+      }, true)
       agent.ctx.on('system-prompt/assemble', async (_assembly, _context, next) => {
         const assembled = await next()
         const { root, selection } = selectionForSession(agentId)
@@ -296,7 +309,7 @@ export function apply(ctx) {
           ...assembled,
           variables: { ...(assembled?.variables || {}), provider: target.provider, model: target.model },
         }
-      })
+      }, true)
     }
   })
 
@@ -405,10 +418,10 @@ export function apply(ctx) {
           sessionId: { type: 'string', required: true },
           rootSessionId: { type: 'string', required: true },
           set: { type: 'boolean', required: true },
-          provider: { type: 'string' },
-          model: { type: 'string' },
-          defaultProvider: { type: 'string' },
-          defaultModel: { type: 'string' },
+          provider: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+          model: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+          defaultProvider: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+          defaultModel: { oneOf: [{ type: 'string' }, { type: 'null' }] },
         },
       },
       render(_args, value) {

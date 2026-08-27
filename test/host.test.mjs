@@ -73,6 +73,31 @@ function response() {
   }
 }
 
+/** Agent ctx that records listener registration order and honors `prepend`. */
+function makeAgentCtx() {
+  const handlers = []
+  return {
+    handlers,
+    ctx: {
+      on(name, handler, options) {
+        const prepend = options === true || (options && options.prepend)
+        handlers[prepend ? 'unshift' : 'push']({ name, handler })
+        return () => {}
+      },
+    },
+  }
+}
+
+/** Dispatch a Cordis-style waterfall outermost-first over handler functions. */
+async function runWaterfall(handlers, initial) {
+  let index = 0
+  const next = async () => {
+    const handler = handlers[index++]
+    return handler ? handler({}, next) : initial
+  }
+  return next()
+}
+
 function request(payload, url = '/subagent-model/api/set', extraHeaders = {}) {
   const body = JSON.stringify(payload)
   const listeners = {}
@@ -196,4 +221,79 @@ test('Host API rejects unknown models and cross-site requests', async () => {
   assert.equal(invalid.status, 400)
   const forbidden = await callRoute(host.routes[0], { sessionId: 'root-session' }, '/subagent-model/api/get', { 'sec-fetch-site': 'cross-site' })
   assert.equal(forbidden.status, 403)
+})
+
+test('root capture is prepended and reads the final resolved config', async () => {
+  const host = makeHost()
+  const created = host.listeners.get('agent/created')
+
+  // The host's own model-selection waterfall (installModelSelection) registers
+  // during agent setup — BEFORE agent/created — and applies its override last
+  // when it is NOT prepended. Simulate that outer handler.
+  const root = makeAgentCtx()
+  root.ctx.on('agent/request', async (_payload, next) => {
+    const resolved = await next()
+    return { ...resolved, provider: 'selected-provider', model: 'selected-model' }
+  })
+  created({ agent: { session: { header: { id: 'root-session' } }, ctx: root.ctx } })
+
+  const requestHandlers = root.handlers.filter((entry) => entry.name === 'agent/request')
+  assert.equal(requestHandlers.length, 2)
+
+  const final = await runWaterfall(
+    requestHandlers.map((entry) => entry.handler),
+    { provider: 'raw', model: 'raw' },
+  )
+  // The outer selection handler runs inside next() and wins for the request.
+  assert.deepEqual(final, { provider: 'selected-provider', model: 'selected-model' })
+
+  // The capture must have recorded the FINAL config, not the raw seed.
+  const get = await callRoute(host.routes[0], { sessionId: 'root-session' }, '/subagent-model/api/get')
+  assert.equal(get.body.value.defaultProvider, 'selected-provider')
+  assert.equal(get.body.value.defaultModel, 'selected-model')
+})
+
+test('subagent override is prepended so it wins over the host selection', async () => {
+  const host = makeHost()
+  const created = host.listeners.get('agent/created')
+
+  // Root: capture a main model via a prepended handler.
+  const root = makeAgentCtx()
+  created({ agent: { session: { header: { id: 'root-session' } }, ctx: root.ctx } })
+  const rootRequest = root.handlers.filter((entry) => entry.name === 'agent/request')
+  await runWaterfall(
+    rootRequest.map((entry) => entry.handler),
+    { provider: 'scnet', model: 'DeepSeek-V4-Pro-0813' },
+  )
+
+  // Child: the host's selection waterfall registered first (setup), our
+  // override registered later and must be PREPENDED (outermost) so its
+  // replacement is the final word instead of being overwritten.
+  const child = makeAgentCtx()
+  child.ctx.on('agent/request', async (_payload, next) => {
+    const resolved = await next()
+    return { ...resolved, provider: 'subagent-default', model: 'subagent-default' }
+  })
+  created({ agent: { session: { header: { id: 'child-session', parentSession: 'root-session', origin: 'subagent' } }, ctx: child.ctx } })
+
+  const childRequest = child.handlers.filter((entry) => entry.name === 'agent/request')
+  assert.equal(childRequest.length, 2)
+
+  const final = await runWaterfall(
+    childRequest.map((entry) => entry.handler),
+    { provider: 'preset', model: 'preset-model' },
+  )
+  // The subagent's own default must NOT win: the prepended plugin override
+  // replaces it with the main agent's model.
+  assert.deepEqual(final, { provider: 'scnet', model: 'DeepSeek-V4-Pro-0813' })
+})
+
+test('tool output schema admits null provider/model when unset', async () => {
+  const host = makeHost()
+  const tool = host.tools.find((definition) => definition.name === 'subagent_model_ctl')
+  assert.ok(tool)
+  const properties = tool.output.schema.properties
+  for (const key of ['provider', 'model', 'defaultProvider', 'defaultModel']) {
+    assert.deepEqual(properties[key].oneOf, [{ type: 'string' }, { type: 'null' }])
+  }
 })

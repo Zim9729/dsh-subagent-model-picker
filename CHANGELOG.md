@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3
+
+- Fix: "Follow main agent" now captures the main agent's model after the host's
+  model-selection waterfall applies it (handlers are prepended), so subagents
+  follow the model picked in the GUI instead of the raw agent options.
+- Fix: `subagent_model_ctl` output schema accepts `null` provider/model when no
+  override is set.
+
 ## 0.2.2
 
 - Fix: client bundle registers under the scoped package name `@zim9729/dsh-subagent-model-picker`.

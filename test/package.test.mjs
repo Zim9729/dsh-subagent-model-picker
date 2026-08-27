@@ -12,7 +12,7 @@ test('package declares a complete DSH bundle surface', async () => {
   assert.equal(pkg.exports['./client'], './lib/client.js')
   assert.equal(pkg.exports['./cordis.patch.yml'], './cordis.patch.yml')
   assert.equal(pkg.name, '@zim9729/dsh-subagent-model-picker')
-  assert.equal(pkg.version, '0.2.2')
+  assert.equal(pkg.version, '0.2.3')
 })
 
 test('bundle patch mounts the package host entry', async () => {
