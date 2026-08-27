@@ -1,6 +1,6 @@
 {
   "name": "@zim9729/dsh-subagent-model-picker",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Per-conversation subagent model selection for DeepSeek Harness Desktop.",
   "type": "module",
   "main": "./lib/index.js",

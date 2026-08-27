@@ -6,6 +6,7 @@ Per-conversation subagent model selection for DeepSeek Harness Desktop.
 
 - Adds a `子 agent 模型` selector beside the conversation composer send controls.
 - Lists configured provider/model pairs from the `llm-pi-ai` settings namespace.
+- Default option ("跟随主 agent") mirrors the main agent's current model in real time.
 - Applies the selected provider/model to `subagent`, `subagent_fork`, and workflow child agents.
 - Keeps the override at the root conversation when a child session is addressed.
 - Restores the override after restart from the DSH home storage directory.
@@ -17,7 +18,7 @@ Per-conversation subagent model selection for DeepSeek Harness Desktop.
 Install through the DSH profile/plugin manager after publishing the npm package:
 
 ```text
-dsh plugin --profile desktop add @zim9729/dsh-subagent-model-picker@0.1.1
+dsh plugin --profile desktop add @zim9729/dsh-subagent-model-picker@0.2.0
 ```
 
 The package declares both `dsh.bundle.patch` and `dsh.client`, so the Host entry and browser entry are mounted by the normal DSH bundle pipeline. Restart DSH after installation when the installer reports that a restart is required. The package's bundle patch is the only required mount; do not duplicate it in a profile patch file. Because this release uses the `@zim9729` npm scope, keep the scope in the install command and plugin-center registry entry.

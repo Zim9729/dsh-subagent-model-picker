@@ -50,12 +50,12 @@ window.__ModuleLoader__.load({
     }
 
     function SubagentModelPicker({ sessionId }) {
-      const [state, setState] = React.useState({ loading: true, saving: false, groups: [], current: null, error: null })
+      const [state, setState] = React.useState({ loading: true, saving: false, groups: [], current: null, defaultProvider: null, defaultModel: null, error: null })
 
       React.useEffect(() => {
         let cancelled = false
         if (typeof sessionId !== 'string' || sessionId.length === 0) {
-          setState({ loading: false, saving: false, groups: [], current: null, error: '当前会话不可用' })
+          setState({ loading: false, saving: false, groups: [], current: null, defaultProvider: null, defaultModel: null, error: '当前会话不可用' })
           return () => { cancelled = true }
         }
         Promise.all([call('catalog', {}), call('get', { sessionId })])
@@ -66,6 +66,8 @@ window.__ModuleLoader__.load({
               saving: false,
               groups: Array.isArray(catalog?.groups) ? catalog.groups : [],
               current: current?.set ? { provider: current.provider, model: current.model } : null,
+              defaultProvider: current?.defaultProvider || null,
+              defaultModel: current?.defaultModel || null,
               error: null,
             })
           })
@@ -86,6 +88,8 @@ window.__ModuleLoader__.load({
               ...current,
               saving: false,
               current: result?.set ? { provider: result.provider, model: result.model } : null,
+              defaultProvider: result?.defaultProvider || current.defaultProvider,
+              defaultModel: result?.defaultModel || current.defaultModel,
               error: null,
             }))
           })
@@ -100,7 +104,10 @@ window.__ModuleLoader__.load({
       }
       if (state.groups.length === 0) return null
 
-      const children = [React.createElement('option', { key: '__default', value: '' }, '子 agent：跟随默认')]
+      const defaultLabel = state.defaultProvider && state.defaultModel
+        ? `子 agent：跟随主 agent（${state.defaultProvider} / ${state.defaultModel}）`
+        : '子 agent：跟随主 agent'
+      const children = [React.createElement('option', { key: '__default', value: '' }, defaultLabel)]
       for (const group of state.groups) {
         if (!group || typeof group.provider !== 'string' || !Array.isArray(group.models)) continue
         const options = group.models.map((model) => React.createElement(

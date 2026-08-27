@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+- "子 agent 跟随默认" now means "follow the main agent's current model" instead of "use DSH global default".
+- The UI default option shows the main agent's provider/model in real time.
+- API `get` and `set` responses include `defaultProvider` and `defaultModel`.
+
 ## 0.1.1
 
 - Publish under the `@zim9729` npm scope after the unscoped name was unavailable.

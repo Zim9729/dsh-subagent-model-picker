@@ -1,8 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { apply } from '../src/index.js'
 
+const testHome = mkdtempSync(join(tmpdir(), 'dsm-test-'))
+process.env.DSH_HOME = testHome
+test.after(() => rmSync(testHome, { recursive: true, force: true }))
+
 function makeHost() {
+  const home = mkdtempSync(join(tmpdir(), 'dsm-'))
+  process.env.DSH_HOME = home
   const listeners = new Map()
   const routes = []
   const tools = []
@@ -10,7 +19,7 @@ function makeHost() {
     get() {
       return {
         providers: {
-          scnet: { models: ['GLM-5.2'] },
+          scnet: { models: ['GLM-5.2', 'DeepSeek-V4-Pro-0813'] },
         },
       }
     },
@@ -93,13 +102,11 @@ test('Host API validates, persists, and normalizes child session requests', asyn
   assert.equal(set.body.value.rootSessionId, 'root-session')
 
   const get = await callRoute(host.routes[0], { sessionId: 'root-session' }, '/subagent-model/api/get')
-  assert.deepEqual(get.body.value, {
-    sessionId: 'root-session',
-    rootSessionId: 'root-session',
-    set: true,
-    provider: 'scnet',
-    model: 'GLM-5.2',
-  })
+  assert.equal(get.body.value.sessionId, 'root-session')
+  assert.equal(get.body.value.rootSessionId, 'root-session')
+  assert.equal(get.body.value.set, true)
+  assert.equal(get.body.value.provider, 'scnet')
+  assert.equal(get.body.value.model, 'GLM-5.2')
 
   const created = host.listeners.get('agent/created')
   const requestHandlers = new Map()
@@ -112,11 +119,81 @@ test('Host API validates, persists, and normalizes child session requests', asyn
   assert.deepEqual(resolved, { provider: 'scnet', model: 'GLM-5.2' })
 })
 
+test('subagent follows main agent model when no override is set', async () => {
+  const host = makeHost()
+  const created = host.listeners.get('agent/created')
+
+  // Create root agent and simulate a request to capture its model
+  const rootHandlers = new Map()
+  const rootAgent = {
+    session: { header: { id: 'root-session' } },
+    ctx: { on(name, handler) { rootHandlers.set(name, handler); return () => {} } },
+  }
+  created({ agent: rootAgent })
+  await rootHandlers.get('agent/request')({}, async () => ({ provider: 'scnet', model: 'DeepSeek-V4-Pro-0813' }))
+
+  // Create child agent without any override
+  const childHandlers = new Map()
+  const childAgent = {
+    session: { header: { id: 'child-session', parentSession: 'root-session', origin: 'subagent' } },
+    ctx: { on(name, handler) { childHandlers.set(name, handler); return () => {} } },
+  }
+  created({ agent: childAgent })
+  const resolved = await childHandlers.get('agent/request')({}, async () => ({ provider: 'preset', model: 'preset-model' }))
+  assert.deepEqual(resolved, { provider: 'scnet', model: 'DeepSeek-V4-Pro-0813' })
+})
+
+test('explicit override takes precedence over main agent model', async () => {
+  const host = makeHost()
+  const route = host.routes[0]
+  const created = host.listeners.get('agent/created')
+
+  // Capture root model
+  const rootHandlers = new Map()
+  const rootAgent = {
+    session: { header: { id: 'root-session' } },
+    ctx: { on(name, handler) { rootHandlers.set(name, handler); return () => {} } },
+  }
+  created({ agent: rootAgent })
+  await rootHandlers.get('agent/request')({}, async () => ({ provider: 'scnet', model: 'DeepSeek-V4-Pro-0813' }))
+
+  // Set an explicit override
+  const set = await callRoute(route, { sessionId: 'root-session', provider: 'scnet', model: 'GLM-5.2' })
+  assert.equal(set.status, 200)
+
+  // Child agent should use the override, not the main model
+  const childHandlers = new Map()
+  const childAgent = {
+    session: { header: { id: 'child-session', parentSession: 'root-session', origin: 'subagent' } },
+    ctx: { on(name, handler) { childHandlers.set(name, handler); return () => {} } },
+  }
+  created({ agent: childAgent })
+  const resolved = await childHandlers.get('agent/request')({}, async () => ({ provider: 'preset', model: 'preset-model' }))
+  assert.deepEqual(resolved, { provider: 'scnet', model: 'GLM-5.2' })
+})
+
+test('get API returns defaultProvider and defaultModel', async () => {
+  const host = makeHost()
+  const created = host.listeners.get('agent/created')
+
+  const rootHandlers = new Map()
+  const rootAgent = {
+    session: { header: { id: 'root-session' } },
+    ctx: { on(name, handler) { rootHandlers.set(name, handler); return () => {} } },
+  }
+  created({ agent: rootAgent })
+  await rootHandlers.get('agent/request')({}, async () => ({ provider: 'scnet', model: 'DeepSeek-V4-Pro-0813' }))
+
+  const get = await callRoute(host.routes[0], { sessionId: 'root-session' }, '/subagent-model/api/get')
+  assert.equal(get.body.value.defaultProvider, 'scnet')
+  assert.equal(get.body.value.defaultModel, 'DeepSeek-V4-Pro-0813')
+})
+
 test('Host API rejects unknown models and cross-site requests', async () => {
   const host = makeHost()
   const route = host.routes[0]
   const invalid = await callRoute(route, { sessionId: 'root-session', provider: 'scnet', model: 'missing' })
   assert.equal(invalid.status, 400)
-  const forbidden = await callRoute(route, { sessionId: 'root-session' }, '/subagent-model/api/get', { 'sec-fetch-site': 'cross-site' })
+  const forbidden = await callRoute(host.routes[0], { sessionId: 'root-session' }, '/subagent-model/api/get', { 'sec-fetch-site': 'cross-site' })
   assert.equal(forbidden.status, 403)
 })

@@ -119,13 +119,14 @@ function responseError(error) {
 }
 
 function safePathHome() {
+  const configured = typeof process?.env?.DSH_HOME === 'string' && process.env.DSH_HOME.trim().length > 0
+    ? process.env.DSH_HOME
+    : undefined
+  if (configured) return configured
   try {
     return resolveDshHome()
   } catch {
-    const configured = typeof process?.env?.DSH_HOME === 'string' && process.env.DSH_HOME.trim().length > 0
-      ? process.env.DSH_HOME
-      : join(homedir(), '.dsh')
-    return configured
+    return join(homedir(), '.dsh')
   }
 }
 
@@ -236,6 +237,7 @@ export function apply(ctx) {
   const overrides = loadOverrides(storeFile)
   const sessions = ctx.sessions
   let persistError = undefined
+  const mainModels = new Map() // rootSessionId -> { provider, model }
 
   const prune = () => {
     for (const sessionId of [...overrides.keys()]) {
@@ -262,33 +264,46 @@ export function apply(ctx) {
 
   const catalog = () => buildCatalog(ctx)
 
-  // Install the waterfalls for every child, then consult the live override at
-  // request time. This avoids the race where a child is created before the UI
-  // selection changes but sends its first request afterwards.
+  // Root agents: capture their current model on each request so subagents
+  // can follow it by default. Subagents: apply an explicit override, or fall
+  // back to the root agent's captured model.
   ctx.on('agent/created', ({ agent }) => {
     const header = agent?.session?.header
-    if (!subagentHeader(header)) return
-    agent.ctx.on('agent/request', async (_payload, next) => {
-      const resolved = await next()
-      const childId = sessionFromAgent(agent)
-      const current = childId === undefined ? undefined : selectionForSession(childId).selection
-      return current === undefined ? resolved : { ...resolved, provider: current.provider, model: current.model }
-    })
-    agent.ctx.on('system-prompt/assemble', async (_assembly, _context, next) => {
-      const assembled = await next()
-      const childId = sessionFromAgent(agent)
-      const current = childId === undefined ? undefined : selectionForSession(childId).selection
-      if (current === undefined) return assembled
-      return {
-        ...assembled,
-        variables: { ...(assembled?.variables || {}), provider: current.provider, model: current.model },
-      }
-    })
+    if (!header) return
+    const agentId = sessionFromAgent(agent)
+    if (agentId === undefined) return
+    if (!subagentHeader(header)) {
+      agent.ctx.on('agent/request', async (_payload, next) => {
+        const resolved = await next()
+        if (resolved?.provider && resolved?.model) {
+          mainModels.set(agentId, { provider: resolved.provider, model: resolved.model })
+        }
+        return resolved
+      })
+    } else {
+      agent.ctx.on('agent/request', async (_payload, next) => {
+        const resolved = await next()
+        const { root, selection } = selectionForSession(agentId)
+        const target = selection || (root ? mainModels.get(root) : undefined)
+        return target ? { ...resolved, provider: target.provider, model: target.model } : resolved
+      })
+      agent.ctx.on('system-prompt/assemble', async (_assembly, _context, next) => {
+        const assembled = await next()
+        const { root, selection } = selectionForSession(agentId)
+        const target = selection || (root ? mainModels.get(root) : undefined)
+        if (!target) return assembled
+        return {
+          ...assembled,
+          variables: { ...(assembled?.variables || {}), provider: target.provider, model: target.model },
+        }
+      })
+    }
   })
 
   ctx.on('session/disposed', (session) => {
     const id = session?.header?.id
     if (typeof id !== 'string' || typeof session.header.parentSession === 'string') return
+    mainModels.delete(id)
     if (overrides.delete(id)) save()
   })
 
@@ -300,7 +315,8 @@ export function apply(ctx) {
       const resolved = selectionForSession(requested)
       if (resolved.root === undefined) throw Object.assign(new Error('session not found'), { statusCode: 404 })
       const current = resolved.selection
-      return { sessionId: requested, rootSessionId: resolved.root, set: current !== undefined, provider: current?.provider || null, model: current?.model || null }
+      const main = mainModels.get(resolved.root)
+      return { sessionId: requested, rootSessionId: resolved.root, set: current !== undefined, provider: current?.provider || null, model: current?.model || null, defaultProvider: main?.provider || null, defaultModel: main?.model || null }
     },
     set(payload) {
       if (!ownRecord(payload)) throw Object.assign(new Error('payload must be an object'), { statusCode: 400 })
@@ -329,7 +345,8 @@ export function apply(ctx) {
         throw Object.assign(new Error(`override was not persisted: ${persistError}`), { statusCode: 500 })
       }
       const current = overrides.get(resolved.root)
-      return { sessionId: requested, rootSessionId: resolved.root, set: current !== undefined, provider: current?.provider || null, model: current?.model || null }
+      const main = mainModels.get(resolved.root)
+      return { sessionId: requested, rootSessionId: resolved.root, set: current !== undefined, provider: current?.provider || null, model: current?.model || null, defaultProvider: main?.provider || null, defaultModel: main?.model || null }
     },
     catalog() {
       return { groups: catalog() }
@@ -390,6 +407,8 @@ export function apply(ctx) {
           set: { type: 'boolean', required: true },
           provider: { type: 'string' },
           model: { type: 'string' },
+          defaultProvider: { type: 'string' },
+          defaultModel: { type: 'string' },
         },
       },
       render(_args, value) {
